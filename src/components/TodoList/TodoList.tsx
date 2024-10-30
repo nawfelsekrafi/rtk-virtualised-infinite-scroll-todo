@@ -1,16 +1,39 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FixedSizeList as List } from "react-window";
 import { useGetTodosQuery } from "../../services/todoApi";
 import CreateTodoForm from "../CreateTodoForm";
+import InfiniteLoader from "react-window-infinite-loader";
 import StatusCounts from "../StatusCounts";
 import TodoItem from "../TodoItem";
 
 function TodoList() {
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [limit] = useState(5);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [allTodos, setAllTodos] = useState<any[]>([]);
 
   const { data, error, isLoading } = useGetTodosQuery({ page, limit });
+
+  useEffect(() => {
+    if (data?.todos) {
+      setAllTodos((prev) => [...prev, ...data.todos]);
+    }
+  }, [data?.todos]);
+
+  const itemCount = data?.total || 0;
+
+  const getTodoAtIndex = (index: number) => {
+    return allTodos[index];
+  };
+
+  const isItemLoaded = (index: number) => {
+    return !!getTodoAtIndex(index);
+  };
+
+  const loadMoreItems = () => {
+    setPage((prev) => prev + 1);
+    return Promise.resolve();
+  };
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {JSON.stringify(error)}</div>;
@@ -19,60 +42,46 @@ function TodoList() {
     <div className="todo-list">
       <h1>Todo List</h1>
 
-      {!isModalOpen && (
+      {!isFormOpen && (
         <button
-          onClick={() => setIsModalOpen((prev) => !prev)}
+          onClick={() => setIsFormOpen((prev) => !prev)}
           className="create-todo-button"
         >
           Create Todo
         </button>
       )}
       <CreateTodoForm
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
       />
-      {!isModalOpen && (
+      {!isFormOpen && (
         <>
           <StatusCounts data={data} />
 
-          <List
-            height={400}
-            itemCount={data?.todos.length || 0}
-            itemSize={100}
-            width="100%"
+          <InfiniteLoader
+            isItemLoaded={isItemLoaded}
+            itemCount={itemCount}
+            loadMoreItems={loadMoreItems}
           >
-            {({ index, style }) => (
-              <div style={style}>
-                <TodoItem todo={data?.todos[index]} />
-              </div>
+            {({ onItemsRendered, ref }) => (
+              <List
+                ref={ref}
+                onItemsRendered={onItemsRendered}
+                height={400}
+                itemCount={itemCount}
+                itemSize={100}
+                width="100%"
+              >
+                {({ index, style }) => (
+                  <div style={style}>
+                    <TodoItem todo={getTodoAtIndex(index)} />
+                  </div>
+                )}
+              </List>
             )}
-          </List>
+          </InfiniteLoader>
         </>
       )}
-      {/* <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          alignItems: "center",
-          marginTop: "20px",
-        }}
-      >
-        <button
-          onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-          disabled={page === 1}
-        >
-          Previous Page
-        </button>
-        <span>
-          Page {page} of {totalPages}
-        </span>
-        <button
-          onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-          disabled={page === totalPages}
-        >
-          Next Page
-        </button>
-      </div> */}
     </div>
   );
 }
